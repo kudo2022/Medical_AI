@@ -59,6 +59,27 @@ npm run dev
 
 Mở trình duyệt tại: **http://127.0.0.1:3000**
 
+## Deploy lên Render (1 link duy nhất cho cả Web + Backend)
+
+Dự án đã có sẵn file `render.yaml` và FastAPI tự động phục vụ giao diện `frontend/` ở đường dẫn `/`.
+
+### Cách 1: Dùng Render Blueprint (Khuyên dùng)
+1. Vào [Render Dashboard](https://dashboard.render.com) → **New +** → **Blueprint**.
+2. Chọn repo GitHub `kudo2022/Medical_AI` (nhánh `main`).
+3. Nhập giá trị cho biến **`OPENAI_API_KEY`** (Render sẽ tự điền Build/Start Command và `OPENAI_MODEL=gpt-4o` từ `render.yaml`).
+4. Nhấn **Apply** và chờ deploy xong để lấy link `https://...onrender.com`.
+
+### Cách 2: Tạo Web Service thủ công trên Render
+1. Vào **New +** → **Web Service** → chọn repo GitHub (nhánh `main`).
+2. Cấu hình:
+   - **Runtime:** `Python 3`
+   - **Build Command:** `pip install -r backend/requirements.txt`
+   - **Start Command:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+3. Trong mục **Environment Variables**, thêm:
+   - `OPENAI_API_KEY` = `sk-...`
+   - `OPENAI_MODEL` = `gpt-4o`
+4. Nhấn **Create Web Service**.
+
 ## Ghi chú
 
 - Thông tin do AI sinh ra chỉ phục vụ mục đích học tập và ôn thi y khoa, không thay thế chẩn đoán hoặc chỉ định điều trị lâm sàng.

@@ -36,14 +36,24 @@ if (savedKey) {
   els.clearKeyBtn.classList.remove("hidden");
 }
 
+function getDefaultBackendUrl() {
+  const { protocol, hostname, port, origin } = window.location;
+  // Khi chạy tách 2 terminal local (frontend port 3000, backend port 8000) hoặc mở file://
+  if (protocol === "file:" || ((hostname === "localhost" || hostname === "127.0.0.1") && port === "3000")) {
+    return "http://127.0.0.1:8000";
+  }
+  // Khi deploy chung trên Render hoặc truy cập trực tiếp qua FastAPI
+  return origin;
+}
+
 const savedBackendUrl = localStorage.getItem("medstudy_backend_url");
-if (savedBackendUrl) els.backendUrlInput.value = savedBackendUrl;
+els.backendUrlInput.value = savedBackendUrl || getDefaultBackendUrl();
 
 const savedModel = localStorage.getItem("medstudy_model");
 if (savedModel) els.modelSelect.value = savedModel;
 
 function getBackendUrl() {
-  return (els.backendUrlInput.value || "http://127.0.0.1:8000").trim().replace(/\/+$/, "");
+  return (els.backendUrlInput.value || getDefaultBackendUrl()).trim().replace(/\/+$/, "");
 }
 
 function escapeHtml(text) {
@@ -307,7 +317,7 @@ function updateApiKeyStatusUI({ autoOpenIfMissing = false } = {}) {
   els.clearKeyBtn.classList.toggle("hidden", !browserKey);
 
   if (!state.backendReachable) {
-    setStatus("error", "Chưa kết nối FastAPI (port 8000)");
+    setStatus("error", "Chưa kết nối được Backend");
     setEnvKeyHint("", "Chờ kết nối backend...");
     els.settingsKeyDot.classList.add("hidden");
     return;
@@ -537,7 +547,7 @@ async function submitQuestion(rawQuestion) {
   } catch {
     loadingNode.remove();
     appendErrorMessage(
-      `Không thể kết nối đến FastAPI tại ${getBackendUrl()}. Hãy kiểm tra Terminal 3 đã chạy backend chưa.`
+      `Không thể kết nối đến Backend tại ${getBackendUrl()}. Vui lòng kiểm tra server đang chạy hoặc cấu hình địa chỉ Backend.`
     );
     state.backendReachable = false;
     updateApiKeyStatusUI();

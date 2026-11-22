@@ -78,15 +78,15 @@
           <div class="field">
             <label for="modelSelect">Model OpenAI</label>
             <select id="modelSelect">
+              <option value="gpt-4o" selected>gpt-4o (Chi tiết cao)</option>
               <option value="gpt-4o-mini">gpt-4o-mini (Nhanh & tiết kiệm)</option>
-              <option value="gpt-4o">gpt-4o (Chi tiết cao)</option>
               <option value="gpt-4.1-mini">gpt-4.1-mini</option>
             </select>
           </div>
 
           <div class="field">
             <label for="backendUrlInput">Địa chỉ Backend FastAPI</label>
-            <input type="text" id="backendUrlInput" value="http://127.0.0.1:8000" />
+            <input type="text" id="backendUrlInput" placeholder="Tự động cùng tên miền hiện tại" />
           </div>
         </div>
         <p class="settings-note">

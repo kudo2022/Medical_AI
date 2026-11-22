@@ -2,9 +2,10 @@ import os
 from pathlib import Path
 from typing import Literal, Optional
 
-from dotenv import dotenv_values, load_dotenv
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from openai import (
     APIConnectionError,
     APIStatusError,
@@ -18,11 +19,14 @@ from openai import (
 )
 from pydantic import BaseModel, Field
 
-# Tải biến môi trường từ backend/.env nếu có
-ENV_PATH = Path(__file__).resolve().parent / ".env"
-load_dotenv(dotenv_path=ENV_PATH)
+# Tải biến môi trường từ backend/.env nếu có (khi chạy local)
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR.parent / "frontend"
+ENV_PATH = BASE_DIR / ".env"
+if ENV_PATH.exists():
+    load_dotenv(dotenv_path=ENV_PATH)
 
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 PLACEHOLDER_API_KEY = "sk-your-openai-api-key-here"
 
 SYSTEM_PROMPT = """Bạn là trợ lý học tập Y khoa (MedStudy AI) dành cho sinh viên y khoa và người tự học kiến thức y học.
@@ -76,21 +80,13 @@ class AskResponse(BaseModel):
 
 
 def _get_env_api_key() -> str:
-    # Đọc lại .env để người dùng không cần khởi động lại server nếu vừa thêm key
-    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    # Đọc lại .env khi chạy local để không cần khởi động lại server nếu vừa thêm key
+    if ENV_PATH.exists():
+        load_dotenv(dotenv_path=ENV_PATH, override=True)
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if key == "sk-your-openai-api-key-here":
+    if key == PLACEHOLDER_API_KEY:
         return ""
     return key
-
-
-@app.get("/")
-def root():
-    return {
-        "message": "MedStudy AI FastAPI Backend đang hoạt động.",
-        "docs": "/docs",
-        "health": "/api/health",
-    }
 
 
 @app.get("/api/health")
@@ -133,11 +129,14 @@ def ask_medical_question(payload: AskRequest):
 
     try:
         client = OpenAI(api_key=api_key)
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=0.3,
-        )
+        create_kwargs = {
+            "model": model_name,
+            "messages": messages,
+        }
+        lower_model = model_name.lower()
+        if not lower_model.startswith(("gpt-5", "o1", "o3", "o4")):
+            create_kwargs["temperature"] = 0.3
+        completion = client.chat.completions.create(**create_kwargs)
     except AuthenticationError:
         raise HTTPException(
             status_code=401,
@@ -176,3 +175,16 @@ def ask_medical_question(payload: AskRequest):
         model=completion.model or model_name,
         usage=usage_info,
     )
+
+
+# Phục vụ trực tiếp giao diện web (frontend/) khi deploy 1 dịch vụ duy nhất (Render, Railway, v.v.)
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+else:
+    @app.get("/")
+    def root():
+        return {
+            "message": "MedStudy AI FastAPI Backend đang hoạt động.",
+            "docs": "/docs",
+            "health": "/api/health",
+        }
