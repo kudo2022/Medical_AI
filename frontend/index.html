@@ -22,77 +22,16 @@
           </div>
           <div>
             <h1>MedStudy AI</h1>
-            <p class="brand-sub">Trợ lý hỏi đáp học Y khoa (FastAPI + OpenAI)</p>
+            <p class="brand-sub">Trợ lý hỏi đáp học Y khoa</p>
           </div>
         </div>
 
         <div class="topbar-actions">
-          <button
-            type="button"
-            id="backendStatusBtn"
-            class="status-pill status-checking"
-            title="Nhấn để kiểm tra lại kết nối Backend FastAPI"
-          >
-            <span class="status-dot"></span>
-            <span id="backendStatusText">Đang kiểm tra backend...</span>
-          </button>
-
-          <button
-            type="button"
-            id="toggleSettingsBtn"
-            class="btn-secondary"
-            aria-expanded="false"
-            aria-controls="settingsPanel"
-          >
-            <span id="settingsKeyDot" class="btn-dot hidden" aria-hidden="true"></span>
-            <span>Cài đặt API</span>
-          </button>
-
           <button type="button" id="clearChatBtn" class="btn-ghost" title="Xóa lịch sử hội thoại hiện tại">
             Hội thoại mới
           </button>
         </div>
       </header>
-
-      <section id="settingsPanel" class="settings-panel hidden" aria-label="Cài đặt OpenAI API">
-        <div class="settings-grid">
-          <div class="field">
-            <label for="apiKeyInput">
-              OpenAI API Key
-              <span id="envKeyHint" class="hint-tag">Tùy chọn nếu đã cấu hình backend/.env</span>
-            </label>
-            <div class="input-with-btn">
-              <input
-                type="password"
-                id="apiKeyInput"
-                placeholder="sk-... (để trống nếu đã đặt trong backend/.env)"
-                autocomplete="off"
-              />
-              <button type="button" id="toggleKeyVisibility" class="btn-inline">Hiện</button>
-              <button type="button" id="clearKeyBtn" class="btn-inline hidden" title="Xóa API Key đã nhập">
-                Xóa
-              </button>
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="modelSelect">Model OpenAI</label>
-            <select id="modelSelect">
-              <option value="gpt-4o" selected>gpt-4o (Chi tiết cao)</option>
-              <option value="gpt-4o-mini">gpt-4o-mini (Nhanh & tiết kiệm)</option>
-              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="backendUrlInput">Địa chỉ Backend FastAPI</label>
-            <input type="text" id="backendUrlInput" placeholder="Tự động cùng tên miền hiện tại" />
-          </div>
-        </div>
-        <p class="settings-note">
-          Key nhập ở đây chỉ lưu tạm trong phiên trình duyệt (<code>sessionStorage</code>) và gửi tới FastAPI local để gọi OpenAI. Khuyên dùng file <code>backend/.env</code> khi học lâu dài.
-        </p>
-      </section>
 
       <div class="topic-bar" role="region" aria-label="Chọn môn học">
         <span class="topic-label">Chuyên ngành:</span>
@@ -112,7 +51,7 @@
           <div class="empty-badge">Học Y thông minh &amp; có hệ thống</div>
           <h2>Bạn đang ôn kiến thức Y khoa nào hôm nay?</h2>
           <p>
-            Nhập câu hỏi về giải phẫu, sinh lý, cơ chế bệnh sinh, dược lý hoặc tình huống lâm sàng — câu hỏi sẽ được gửi qua FastAPI tới OpenAI để giải thích chi tiết.
+            Nhập câu hỏi về giải phẫu, sinh lý, cơ chế bệnh sinh, dược lý hoặc tình huống lâm sàng để được giải thích chi tiết.
           </p>
 
           <div class="sample-grid">

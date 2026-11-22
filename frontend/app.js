@@ -2,23 +2,10 @@ const state = {
   topic: "Tự do",
   history: [],
   isLoading: false,
-  backendReachable: false,
-  hasEnvApiKey: false,
 };
 
 const els = {
-  backendStatusBtn: document.getElementById("backendStatusBtn"),
-  backendStatusText: document.getElementById("backendStatusText"),
-  toggleSettingsBtn: document.getElementById("toggleSettingsBtn"),
-  settingsKeyDot: document.getElementById("settingsKeyDot"),
   clearChatBtn: document.getElementById("clearChatBtn"),
-  settingsPanel: document.getElementById("settingsPanel"),
-  apiKeyInput: document.getElementById("apiKeyInput"),
-  toggleKeyVisibility: document.getElementById("toggleKeyVisibility"),
-  clearKeyBtn: document.getElementById("clearKeyBtn"),
-  envKeyHint: document.getElementById("envKeyHint"),
-  modelSelect: document.getElementById("modelSelect"),
-  backendUrlInput: document.getElementById("backendUrlInput"),
   topicChips: document.getElementById("topicChips"),
   chatContainer: document.getElementById("chatContainer"),
   emptyState: document.getElementById("emptyState"),
@@ -29,31 +16,14 @@ const els = {
   charCount: document.getElementById("charCount"),
 };
 
-// Khôi phục cài đặt tạm thời trong phiên
-const savedKey = sessionStorage.getItem("medstudy_openai_key");
-if (savedKey) {
-  els.apiKeyInput.value = savedKey;
-  els.clearKeyBtn.classList.remove("hidden");
-}
-
-function getDefaultBackendUrl() {
+function getBackendUrl() {
   const { protocol, hostname, port, origin } = window.location;
   // Khi chạy tách 2 terminal local (frontend port 3000, backend port 8000) hoặc mở file://
   if (protocol === "file:" || ((hostname === "localhost" || hostname === "127.0.0.1") && port === "3000")) {
     return "http://127.0.0.1:8000";
   }
   // Khi deploy chung trên Render hoặc truy cập trực tiếp qua FastAPI
-  return origin;
-}
-
-const savedBackendUrl = localStorage.getItem("medstudy_backend_url");
-els.backendUrlInput.value = savedBackendUrl || getDefaultBackendUrl();
-
-const savedModel = localStorage.getItem("medstudy_model");
-if (savedModel) els.modelSelect.value = savedModel;
-
-function getBackendUrl() {
-  return (els.backendUrlInput.value || getDefaultBackendUrl()).trim().replace(/\/+$/, "");
+  return origin.replace(/\/+$/, "");
 }
 
 function escapeHtml(text) {
@@ -297,76 +267,6 @@ function renderMarkdown(markdown) {
   return output.join("\n");
 }
 
-function setStatus(kind, text) {
-  els.backendStatusBtn.className = `status-pill status-${kind}`;
-  els.backendStatusText.textContent = text;
-}
-
-function setSettingsOpen(open) {
-  els.settingsPanel.classList.toggle("hidden", !open);
-  els.toggleSettingsBtn.setAttribute("aria-expanded", String(open));
-}
-
-function setEnvKeyHint(kind, text) {
-  els.envKeyHint.textContent = text;
-  els.envKeyHint.className = `hint-tag${kind ? ` hint-${kind}` : ""}`;
-}
-
-function updateApiKeyStatusUI({ autoOpenIfMissing = false } = {}) {
-  const browserKey = els.apiKeyInput.value.trim();
-  els.clearKeyBtn.classList.toggle("hidden", !browserKey);
-
-  if (!state.backendReachable) {
-    setStatus("error", "Chưa kết nối được Backend");
-    setEnvKeyHint("", "Chờ kết nối backend...");
-    els.settingsKeyDot.classList.add("hidden");
-    return;
-  }
-
-  if (browserKey) {
-    setStatus("ok", "Backend sẵn sàng (Key trình duyệt)");
-    setEnvKeyHint("ok", "Đang dùng key nhập ở giao diện");
-    els.settingsKeyDot.classList.add("hidden");
-  } else if (state.hasEnvApiKey) {
-    setStatus("ok", "Backend sẵn sàng (.env OK)");
-    setEnvKeyHint("ok", "Đã có key trong backend/.env");
-    els.settingsKeyDot.classList.add("hidden");
-  } else {
-    setStatus("warn", "Backend chạy — Chưa có API Key");
-    setEnvKeyHint("warn", "Cần nhập API Key hoặc cấu hình .env");
-    els.settingsKeyDot.classList.remove("hidden");
-    if (autoOpenIfMissing) {
-      setSettingsOpen(true);
-    }
-  }
-}
-
-async function checkBackendHealth() {
-  setStatus("checking", "Đang kiểm tra backend...");
-  try {
-    const res = await fetch(`${getBackendUrl()}/api/health`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    state.backendReachable = true;
-    state.hasEnvApiKey = Boolean(data.has_env_api_key);
-
-    if (!localStorage.getItem("medstudy_model") && data.default_model) {
-      const hasOption = Array.from(els.modelSelect.options).some(
-        (opt) => opt.value === data.default_model
-      );
-      if (hasOption) {
-        els.modelSelect.value = data.default_model;
-      }
-    }
-
-    updateApiKeyStatusUI({ autoOpenIfMissing: true });
-  } catch {
-    state.backendReachable = false;
-    state.hasEnvApiKey = false;
-    updateApiKeyStatusUI();
-  }
-}
-
 function scrollToBottom() {
   els.chatContainer.scrollTop = els.chatContainer.scrollHeight;
 }
@@ -399,7 +299,7 @@ function appendLoadingMessage() {
     <div class="bubble">
       <div class="typing-indicator">
         <span class="typing-dots"><span></span><span></span><span></span></span>
-        <span>Đang gửi câu hỏi tới OpenAI...</span>
+        <span>Đang xử lý câu hỏi...</span>
       </div>
     </div>
   `;
@@ -517,8 +417,6 @@ async function submitQuestion(rawQuestion) {
         question,
         topic: state.topic,
         history: state.history,
-        api_key: els.apiKeyInput.value.trim() || null,
-        model: els.modelSelect.value || null,
       }),
     });
 
@@ -528,10 +426,6 @@ async function submitQuestion(rawQuestion) {
     if (!response.ok) {
       const detail = extractErrorDetail(data, response.status);
       appendErrorMessage(detail);
-      if (response.status === 400 || response.status === 401) {
-        setSettingsOpen(true);
-        els.apiKeyInput.focus();
-      }
       return;
     }
 
@@ -547,10 +441,8 @@ async function submitQuestion(rawQuestion) {
   } catch {
     loadingNode.remove();
     appendErrorMessage(
-      `Không thể kết nối đến Backend tại ${getBackendUrl()}. Vui lòng kiểm tra server đang chạy hoặc cấu hình địa chỉ Backend.`
+      `Không thể kết nối đến máy chủ tại ${getBackendUrl()}. Vui lòng thử lại sau.`
     );
-    state.backendReachable = false;
-    updateApiKeyStatusUI();
   } finally {
     state.isLoading = false;
     els.sendBtn.disabled = false;
@@ -559,52 +451,6 @@ async function submitQuestion(rawQuestion) {
 }
 
 // Event listeners
-els.toggleSettingsBtn.addEventListener("click", () => {
-  const isHidden = els.settingsPanel.classList.contains("hidden");
-  setSettingsOpen(isHidden);
-});
-
-els.settingsPanel.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    setSettingsOpen(false);
-    els.questionInput.focus();
-  }
-});
-
-els.toggleKeyVisibility.addEventListener("click", () => {
-  const isPassword = els.apiKeyInput.type === "password";
-  els.apiKeyInput.type = isPassword ? "text" : "password";
-  els.toggleKeyVisibility.textContent = isPassword ? "Ẩn" : "Hiện";
-});
-
-els.clearKeyBtn.addEventListener("click", () => {
-  els.apiKeyInput.value = "";
-  sessionStorage.removeItem("medstudy_openai_key");
-  updateApiKeyStatusUI();
-  els.apiKeyInput.focus();
-});
-
-els.apiKeyInput.addEventListener("input", () => {
-  const val = els.apiKeyInput.value.trim();
-  if (val) {
-    sessionStorage.setItem("medstudy_openai_key", val);
-  } else {
-    sessionStorage.removeItem("medstudy_openai_key");
-  }
-  updateApiKeyStatusUI();
-});
-
-els.backendUrlInput.addEventListener("change", () => {
-  localStorage.setItem("medstudy_backend_url", getBackendUrl());
-  checkBackendHealth();
-});
-
-els.modelSelect.addEventListener("change", () => {
-  localStorage.setItem("medstudy_model", els.modelSelect.value);
-});
-
-els.backendStatusBtn.addEventListener("click", checkBackendHealth);
-
 els.clearChatBtn.addEventListener("click", () => {
   if (state.isLoading) return;
   state.history = [];
@@ -651,5 +497,3 @@ els.questionForm.addEventListener("submit", (event) => {
   event.preventDefault();
   submitQuestion(els.questionInput.value);
 });
-
-checkBackendHealth();
