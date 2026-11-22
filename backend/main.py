@@ -26,7 +26,7 @@ ENV_PATH = BASE_DIR / ".env"
 if ENV_PATH.exists():
     load_dotenv(dotenv_path=ENV_PATH)
 
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-sol")
 PLACEHOLDER_API_KEY = "sk-your-openai-api-key-here"
 
 SYSTEM_PROMPT = """Bạn là trợ lý học tập Y khoa (MedStudy AI) dành cho sinh viên y khoa và người tự học kiến thức y học.
