@@ -2,6 +2,8 @@ const state = {
   topic: "Tự do",
   history: [],
   isLoading: false,
+  isUploadingPdf: false,
+  pdf: null,
 };
 
 const els = {
@@ -10,6 +12,14 @@ const els = {
   chatContainer: document.getElementById("chatContainer"),
   emptyState: document.getElementById("emptyState"),
   messagesList: document.getElementById("messagesList"),
+  pdfBar: document.getElementById("pdfBar"),
+  pdfName: document.getElementById("pdfName"),
+  pdfMeta: document.getElementById("pdfMeta"),
+  pdfQuickSummaryBtn: document.getElementById("pdfQuickSummaryBtn"),
+  pdfQuickQuizBtn: document.getElementById("pdfQuickQuizBtn"),
+  removePdfBtn: document.getElementById("removePdfBtn"),
+  pdfInput: document.getElementById("pdfInput"),
+  uploadPdfBtn: document.getElementById("uploadPdfBtn"),
   questionForm: document.getElementById("questionForm"),
   questionInput: document.getElementById("questionInput"),
   sendBtn: document.getElementById("sendBtn"),
@@ -271,18 +281,22 @@ function scrollToBottom() {
   els.chatContainer.scrollTop = els.chatContainer.scrollHeight;
 }
 
-function appendUserMessage(text, topic) {
+function appendUserMessage(text, topic, pdfName = "") {
   els.emptyState.classList.add("hidden");
 
   const wrapper = document.createElement("article");
   wrapper.className = "message user";
+  const pdfBadgeHtml = pdfName
+    ? `<div class="user-pdf-badge" title="${escapeHtml(pdfName)}">📄 ${escapeHtml(pdfName)}</div><div>${escapeHtml(text)}</div>`
+    : escapeHtml(text);
+
   wrapper.innerHTML = `
     <div class="message-meta">
       <span>Bạn</span>
       <span>•</span>
       <span>${escapeHtml(topic)}</span>
     </div>
-    <div class="bubble">${escapeHtml(text)}</div>
+    <div class="bubble">${pdfBadgeHtml}</div>
   `;
   els.messagesList.appendChild(wrapper);
   scrollToBottom();
@@ -397,27 +411,152 @@ function extractErrorDetail(data, status) {
   return `Backend trả về lỗi HTTP ${status}.`;
 }
 
+function formatCharCount(n) {
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K ký tự`;
+  return `${n} ký tự`;
+}
+
+function renderPdfBar() {
+  if (state.isUploadingPdf) {
+    els.pdfBar.classList.remove("hidden");
+    els.pdfBar.classList.add("uploading");
+    els.pdfQuickSummaryBtn.disabled = true;
+    els.pdfQuickQuizBtn.disabled = true;
+    els.uploadPdfBtn.disabled = true;
+    return;
+  }
+
+  els.pdfBar.classList.remove("uploading");
+  els.uploadPdfBtn.disabled = state.isLoading;
+
+  if (!state.pdf) {
+    els.pdfBar.classList.add("hidden");
+    els.uploadPdfBtn.classList.remove("has-file");
+    return;
+  }
+
+  els.pdfBar.classList.remove("hidden");
+  els.uploadPdfBtn.classList.add("has-file");
+  els.pdfName.textContent = state.pdf.filename;
+  els.pdfName.title = state.pdf.filename;
+
+  const metaParts = [`${state.pdf.pages} trang`];
+  if (state.pdf.mode === "vision") {
+    metaParts.push("Đọc hình ảnh/scan");
+  } else {
+    metaParts.push(formatCharCount(state.pdf.char_count));
+    if (state.pdf.truncated) {
+      metaParts.push("đã lấy phần đầu");
+    }
+  }
+  els.pdfMeta.textContent = metaParts.join(" • ");
+  els.pdfQuickSummaryBtn.disabled = state.isLoading;
+  els.pdfQuickQuizBtn.disabled = state.isLoading;
+}
+
+function clearPdfAttachment() {
+  state.pdf = null;
+  els.pdfInput.value = "";
+  renderPdfBar();
+}
+
+async function handlePdfFile(file) {
+  if (!file || state.isUploadingPdf || state.isLoading) return;
+
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    els.emptyState.classList.add("hidden");
+    appendErrorMessage("Vui lòng chỉ chọn file định dạng .pdf.");
+    return;
+  }
+
+  if (file.size > 15 * 1024 * 1024) {
+    els.emptyState.classList.add("hidden");
+    appendErrorMessage("File PDF vượt quá giới hạn 15 MB. Vui lòng chọn file nhỏ hơn.");
+    return;
+  }
+
+  state.isUploadingPdf = true;
+  els.pdfName.textContent = file.name;
+  els.pdfMeta.textContent = "Đang đọc tài liệu PDF...";
+  renderPdfBar();
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${getBackendUrl()}/api/upload-pdf`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const detail = extractErrorDetail(data, response.status);
+      els.emptyState.classList.add("hidden");
+      appendErrorMessage(detail);
+      return;
+    }
+
+    state.pdf = {
+      filename: data.filename || file.name,
+      pages: data.pages || 1,
+      char_count: data.char_count || 0,
+      truncated: Boolean(data.truncated),
+      mode: data.mode || "text",
+      text: data.text || "",
+      pdf_base64: data.pdf_base64 || null,
+    };
+    els.questionInput.focus();
+  } catch {
+    els.emptyState.classList.add("hidden");
+    appendErrorMessage(
+      `Không thể tải lên file PDF tới máy chủ tại ${getBackendUrl()}. Vui lòng thử lại.`
+    );
+  } finally {
+    state.isUploadingPdf = false;
+    els.pdfInput.value = "";
+    renderPdfBar();
+  }
+}
+
 async function submitQuestion(rawQuestion) {
-  const question = rawQuestion.trim();
-  if (!question || state.isLoading) return;
+  let question = rawQuestion.trim();
+  if (state.isLoading || state.isUploadingPdf) return;
+  if (!question && state.pdf) {
+    question = "Hãy tóm tắt có hệ thống các kiến thức trọng tâm trong tài liệu PDF đính kèm.";
+  }
+  if (!question) return;
+
+  const attachedPdf = state.pdf;
 
   state.isLoading = true;
   els.sendBtn.disabled = true;
+  renderPdfBar();
   els.questionInput.value = "";
   autoResizeTextarea();
 
-  appendUserMessage(question, state.topic);
+  appendUserMessage(question, state.topic, attachedPdf ? attachedPdf.filename : "");
   const loadingNode = appendLoadingMessage();
 
   try {
+    const requestBody = {
+      question,
+      topic: state.topic,
+      history: state.history,
+    };
+    if (attachedPdf) {
+      requestBody.pdf_name = attachedPdf.filename;
+      if (attachedPdf.text) {
+        requestBody.pdf_text = attachedPdf.text;
+      } else if (attachedPdf.pdf_base64) {
+        requestBody.pdf_base64 = attachedPdf.pdf_base64;
+      }
+    }
+
     const response = await fetch(`${getBackendUrl()}/api/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question,
-        topic: state.topic,
-        history: state.history,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await response.json().catch(() => ({}));
@@ -446,14 +585,65 @@ async function submitQuestion(rawQuestion) {
   } finally {
     state.isLoading = false;
     els.sendBtn.disabled = false;
+    renderPdfBar();
     els.questionInput.focus();
   }
 }
 
 // Event listeners
+els.uploadPdfBtn.addEventListener("click", () => {
+  if (state.isLoading || state.isUploadingPdf) return;
+  els.pdfInput.click();
+});
+
+els.pdfInput.addEventListener("change", (event) => {
+  const file = event.target.files && event.target.files[0];
+  if (file) handlePdfFile(file);
+});
+
+els.removePdfBtn.addEventListener("click", () => {
+  if (state.isUploadingPdf) return;
+  clearPdfAttachment();
+  els.questionInput.focus();
+});
+
+els.pdfQuickSummaryBtn.addEventListener("click", () => {
+  if (!state.pdf) return;
+  submitQuestion("Hãy tóm tắt có hệ thống các kiến thức trọng tâm trong tài liệu PDF đính kèm.");
+});
+
+els.pdfQuickQuizBtn.addEventListener("click", () => {
+  if (!state.pdf) return;
+  submitQuestion(
+    "Hãy tạo 5 câu hỏi trắc nghiệm ôn tập (kèm đáp án và giải thích ngắn gọn) dựa trên tài liệu PDF đính kèm."
+  );
+});
+
+["dragenter", "dragover"].forEach((evtName) => {
+  els.questionForm.addEventListener(evtName, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    els.questionForm.classList.add("drag-over");
+  });
+});
+
+["dragleave", "drop"].forEach((evtName) => {
+  els.questionForm.addEventListener(evtName, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    els.questionForm.classList.remove("drag-over");
+  });
+});
+
+els.questionForm.addEventListener("drop", (event) => {
+  const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+  if (file) handlePdfFile(file);
+});
+
 els.clearChatBtn.addEventListener("click", () => {
-  if (state.isLoading) return;
+  if (state.isLoading || state.isUploadingPdf) return;
   state.history = [];
+  clearPdfAttachment();
   els.messagesList.innerHTML = "";
   els.emptyState.classList.remove("hidden");
   els.questionInput.focus();

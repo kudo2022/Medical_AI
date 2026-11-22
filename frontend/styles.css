@@ -490,6 +490,24 @@ select:focus-visible {
   white-space: pre-wrap;
 }
 
+.user-pdf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message.assistant .bubble {
   width: 100%;
   max-width: 100%;
@@ -705,15 +723,159 @@ select:focus-visible {
   background: var(--surface);
 }
 
+.pdf-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid #b5dfd9;
+  background: var(--primary-soft);
+  flex-wrap: wrap;
+}
+
+.pdf-bar.uploading {
+  opacity: 0.85;
+}
+
+.pdf-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pdf-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid #cce7e3;
+}
+
+.pdf-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pdf-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0b4f4a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-meta {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.pdf-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pdf-quick-btn {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #a7d7d0;
+  background: #ffffff;
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pdf-quick-btn:hover:not(:disabled) {
+  background: #f0faf9;
+  border-color: var(--primary);
+}
+
+.pdf-quick-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pdf-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.pdf-remove-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--danger);
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 8px;
   padding: 8px;
   border-radius: 14px;
   border: 1.5px solid var(--border-strong);
   background: var(--surface-subtle);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.composer.drag-over {
+  border-color: var(--primary);
+  border-style: dashed;
+  background: var(--primary-soft);
+}
+
+.attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.attach-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.attach-btn.has-file {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.attach-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .composer:focus-within {
@@ -790,7 +952,8 @@ select:focus-visible {
     padding: 10px 13px;
   }
 
-  .btn-primary .send-label {
+  .btn-primary .send-label,
+  .attach-btn .attach-label {
     display: none;
   }
 
