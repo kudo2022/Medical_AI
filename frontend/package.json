@@ -1,0 +1,10 @@
+{
+  "name": "medstudy-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Giao diện web học Y khoa đơn giản kết nối FastAPI + OpenAI",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  }
+}
