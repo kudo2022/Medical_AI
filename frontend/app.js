@@ -46,22 +46,115 @@ function escapeHtml(text) {
     .replace(/'/g, "&#39;");
 }
 
-function formatInlineMarkdown(line) {
-  const codeTokens = [];
-  let html = escapeHtml(line);
+function renderFallbackMathHtml(rawExpr) {
+  let s = escapeHtml(rawExpr.trim());
 
-  // Bảo vệ inline code trước khi định dạng bold/italic
-  html = html.replace(/`([^`]+)`/g, (_, code) => {
-    const idx = codeTokens.length;
-    codeTokens.push(`<code>${code}</code>`);
-    return `@@CODE_${idx}@@`;
+  // Thay thế các ký hiệu LaTeX thông dụng khi không tải được CDN KaTeX
+  const symbolMap = [
+    [/\\times/g, "×"],
+    [/\\cdot/g, "·"],
+    [/\\pm/g, "±"],
+    [/\\le(?:q)?\b/g, "≤"],
+    [/\\ge(?:q)?\b/g, "≥"],
+    [/\\ne(?:q)?\b/g, "≠"],
+    [/\\approx/g, "≈"],
+    [/\\rightarrow|\\to\b/g, "→"],
+    [/\\leftarrow/g, "←"],
+    [/\\leftrightarrow/g, "↔"],
+    [/\\alpha\b/g, "α"],
+    [/\\beta\b/g, "β"],
+    [/\\gamma\b/g, "γ"],
+    [/\\delta\b/g, "δ"],
+    [/\\Delta\b/g, "Δ"],
+    [/\\mu\b/g, "μ"],
+    [/\\pi\b/g, "π"],
+    [/\\infty\b/g, "∞"],
+    [/\\left|\\right/g, ""],
+    [/\\,/g, " "],
+    [/\\;/g, " "],
+    [/\\quad/g, "  "],
+  ];
+  for (const [pattern, replacement] of symbolMap) {
+    s = s.replace(pattern, replacement);
+  }
+
+  s = s.replace(/\\(?:text|mathrm|mathbf|operatorname)\{([^{}]+)\}/g, "$1");
+  s = s.replace(/_\{([^{}]+)\}/g, "<sub>$1</sub>");
+  s = s.replace(/\^\{([^{}]+)\}/g, "<sup>$1</sup>");
+  s = s.replace(/_([A-Za-z0-9+-])/g, "<sub>$1</sub>");
+  s = s.replace(/\^([A-Za-z0-9+-])/g, "<sup>$1</sup>");
+
+  // Chuyển \frac{tu}{mau} thành phân số dựng đứng
+  let prev = "";
+  while (prev !== s) {
+    prev = s;
+    s = s.replace(
+      /\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g,
+      '<span class="math-frac"><span class="math-frac-num">$1</span><span class="math-frac-den">$2</span></span>'
+    );
+  }
+
+  return s;
+}
+
+function renderMath(expr, displayMode = false) {
+  const clean = String(expr || "").trim();
+  if (!clean) return "";
+
+  if (window.katex && typeof window.katex.renderToString === "function") {
+    try {
+      const html = window.katex.renderToString(clean, {
+        displayMode,
+        throwOnError: false,
+        strict: false,
+      });
+      return displayMode
+        ? `<div class="math-block">${html}</div>`
+        : `<span class="math-inline">${html}</span>`;
+    } catch {
+      // Fall through to built-in HTML renderer
+    }
+  }
+
+  const fallbackHtml = renderFallbackMathHtml(clean);
+  return displayMode
+    ? `<div class="math-block math-fallback">${fallbackHtml}</div>`
+    : `<span class="math-inline math-fallback">${fallbackHtml}</span>`;
+}
+
+function formatInlineMarkdown(line) {
+  const tokens = [];
+  const stash = (htmlSnippet) => {
+    const idx = tokens.length;
+    tokens.push(htmlSnippet);
+    return `@@TOK_${idx}@@`;
+  };
+
+  let raw = String(line || "");
+
+  // 1. Bảo vệ inline code trước (LaTeX trong backtick giữ nguyên dạng code)
+  raw = raw.replace(/`([^`]+)`/g, (_, code) => stash(`<code>${escapeHtml(code)}</code>`));
+
+  // 2. Render công thức LaTeX trong dòng: \(...\), \[...\], $$...$$, $...$
+  raw = raw.replace(/\\\((.+?)\\\)/g, (_, expr) => stash(renderMath(expr, false)));
+  raw = raw.replace(/\\\[(.+?)\\\]/g, (_, expr) => stash(renderMath(expr, true)));
+  raw = raw.replace(/(?<!\\)\$\$(.+?)(?<!\\)\$\$/g, (_, expr) => stash(renderMath(expr, false)));
+  raw = raw.replace(/(?<!\\)\$(?!\s)((?:[^$\\\n]|\\.)+?)(?<!\s)\$/g, (match, expr) => {
+    // Tránh nhầm giá tiền đơn thuần như "$7/tháng" hoặc "$100"
+    if (/^\d[\d.,]*$/.test(expr.trim())) {
+      return match;
+    }
+    return stash(renderMath(expr, false));
   });
 
+  // 3. Escape phần văn bản thường và định dạng đậm/nghiêng
+  let html = escapeHtml(raw);
   html = html.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
-  html = html.replace(/@@CODE_(\d+)@@/g, (_, idx) => codeTokens[Number(idx)] || "");
+  // 4. Khôi phục code và công thức đã render an toàn
+  html = html.replace(/@@TOK_(\d+)@@/g, (_, idx) => tokens[Number(idx)] || "");
   return html;
 }
 
@@ -107,6 +200,8 @@ function renderMarkdown(markdown) {
   let inOl = false;
   let inCodeBlock = false;
   let codeLines = [];
+  let inMathBlock = null; // "bracket" (\[...\]) | "dollar" ($$...$$)
+  let mathLines = [];
   let quoteLines = [];
 
   const closeLists = () => {
@@ -133,7 +228,7 @@ function renderMarkdown(markdown) {
     const line = rawLine.trim();
 
     // Fenced code block
-    if (line.startsWith("```")) {
+    if (!inMathBlock && line.startsWith("```")) {
       closeLists();
       flushQuote();
       if (!inCodeBlock) {
@@ -149,6 +244,63 @@ function renderMarkdown(markdown) {
 
     if (inCodeBlock) {
       codeLines.push(rawLine);
+      continue;
+    }
+
+    // Đang ở trong block công thức nhiều dòng (\[ ... \] hoặc $$ ... $$)
+    if (inMathBlock === "bracket") {
+      if (line.endsWith("\\]")) {
+        const beforeClose = line.slice(0, -2).trim();
+        if (beforeClose) mathLines.push(beforeClose);
+        output.push(renderMath(mathLines.join("\n"), true));
+        inMathBlock = null;
+        mathLines = [];
+      } else {
+        mathLines.push(rawLine);
+      }
+      continue;
+    }
+
+    if (inMathBlock === "dollar") {
+      if (line.endsWith("$$")) {
+        const beforeClose = line.slice(0, -2).trim();
+        if (beforeClose) mathLines.push(beforeClose);
+        output.push(renderMath(mathLines.join("\n"), true));
+        inMathBlock = null;
+        mathLines = [];
+      } else {
+        mathLines.push(rawLine);
+      }
+      continue;
+    }
+
+    // Mở block công thức dạng \[ ... \] (1 dòng hoặc nhiều dòng)
+    if (line.startsWith("\\[")) {
+      closeLists();
+      flushQuote();
+      if (line.endsWith("\\]") && line.length > 4) {
+        output.push(renderMath(line.slice(2, -2), true));
+      } else {
+        inMathBlock = "bracket";
+        mathLines = [];
+        const afterOpen = line.slice(2).trim();
+        if (afterOpen) mathLines.push(afterOpen);
+      }
+      continue;
+    }
+
+    // Mở block công thức dạng $$ ... $$ (1 dòng hoặc nhiều dòng)
+    if (line.startsWith("$$")) {
+      closeLists();
+      flushQuote();
+      if (line.endsWith("$$") && line.length > 4) {
+        output.push(renderMath(line.slice(2, -2), true));
+      } else {
+        inMathBlock = "dollar";
+        mathLines = [];
+        const afterOpen = line.slice(2).trim();
+        if (afterOpen) mathLines.push(afterOpen);
+      }
       continue;
     }
 
@@ -273,6 +425,9 @@ function renderMarkdown(markdown) {
   if (inCodeBlock && codeLines.length > 0) {
     output.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
   }
+  if (inMathBlock && mathLines.length > 0) {
+    output.push(renderMath(mathLines.join("\n"), true));
+  }
   closeLists();
   flushQuote();
   return output.join("\n");
@@ -295,7 +450,7 @@ function appendUserMessage(text, topic, pdfName = "") {
   const wrapper = document.createElement("article");
   wrapper.className = "message user";
   const pdfBadgeHtml = pdfName
-    ? `<div class="user-pdf-badge" title="${escapeHtml(pdfName)}">📄 ${escapeHtml(pdfName)}</div><div>${escapeHtml(text)}</div>`
+    ? `<div class="user-pdf-badge" title="${escapeHtml(pdfName)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${escapeHtml(pdfName)}</span></div><div>${escapeHtml(text)}</div>`
     : escapeHtml(text);
 
   wrapper.innerHTML = `
@@ -819,28 +974,55 @@ els.clearChatBtn.addEventListener("click", () => {
   els.questionInput.focus();
 });
 
+function setActiveTopic(topic) {
+  const nextTopic = topic || "Tự do";
+  state.topic = nextTopic;
+  els.topicChips.querySelectorAll(".chip").forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.topic === nextTopic);
+  });
+  document.querySelectorAll(".spec-card").forEach((card) => {
+    card.classList.toggle("is-selected", card.dataset.specTopic === nextTopic);
+  });
+  els.questionInput.placeholder =
+    nextTopic === "Tự do"
+      ? "Hỏi bài y khoa hoặc kéo thả PDF..."
+      : `Hỏi bài môn ${nextTopic} hoặc kéo thả PDF...`;
+}
+
 els.topicChips.addEventListener("click", (event) => {
   const btn = event.target.closest(".chip");
   if (!btn) return;
-
-  els.topicChips.querySelectorAll(".chip").forEach((chip) => chip.classList.remove("active"));
-  btn.classList.add("active");
-  state.topic = btn.dataset.topic || "Tự do";
+  setActiveTopic(btn.dataset.topic || "Tự do");
 });
 
 document.querySelectorAll(".sample-card").forEach((card) => {
   card.addEventListener("click", () => {
     const topic = card.dataset.topic;
     const question = card.dataset.question;
-    if (topic) {
-      state.topic = topic;
-      els.topicChips.querySelectorAll(".chip").forEach((chip) => {
-        chip.classList.toggle("active", chip.dataset.topic === topic);
-      });
+    if (topic) setActiveTopic(topic);
+    if (question) submitQuestion(question);
+  });
+});
+
+// Wire horizontal specialty rail cards directly into the live MedStudy AI studio
+document.querySelectorAll(".spec-card").forEach((card) => {
+  card.addEventListener("click", () => {
+    const topic = card.dataset.specTopic || "Tự do";
+    const starterQuestion = (card.dataset.specQuestion || "").trim();
+    setActiveTopic(topic);
+
+    const studioEl = document.getElementById("studio");
+    if (studioEl) {
+      studioEl.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    if (question) {
-      submitQuestion(question);
+
+    if (starterQuestion && !els.questionInput.value.trim()) {
+      els.questionInput.value = starterQuestion;
+      autoResizeTextarea();
     }
+    setTimeout(() => {
+      els.questionInput.focus({ preventScroll: true });
+    }, 320);
   });
 });
 
@@ -857,3 +1039,225 @@ els.questionForm.addEventListener("submit", (event) => {
   event.preventDefault();
   submitQuestion(els.questionInput.value);
 });
+
+/* ============================================================================
+   ScrollCraft Runtime, Preview KaTeX, Particle Field, Pointer Depth & ECG Rail
+   ========================================================================== */
+function renderStaticPreviewFormulas() {
+  const heroFormulaEl = document.getElementById("heroPreviewFormula");
+  if (heroFormulaEl) {
+    heroFormulaEl.innerHTML = renderMath("TI = \\frac{TD_{50}}{ED_{50}}", true);
+  }
+  const methodFormulaEl = document.getElementById("methodFormula");
+  if (methodFormulaEl) {
+    methodFormulaEl.innerHTML = renderMath(
+      "Cl_{Cr} = \\frac{(140 - \\text{Tuổi}) \\times \\text{Cân nặng}}{72 \\times Scr}",
+      true
+    );
+  }
+}
+
+function initParticleField() {
+  const canvas = document.getElementById("particleField");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const prefersReduced =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+  let particles = [];
+  let rafId = 0;
+
+  const seedParticles = () => {
+    const count = Math.min(72, Math.max(28, Math.floor((width * height) / 24000)));
+    particles = [];
+    for (let i = 0; i < count; i += 1) {
+      const isGreen = i % 3 === 0;
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        r: 1.1 + Math.random() * 1.9,
+        vx: (Math.random() - 0.5) * 0.16,
+        vy: (Math.random() - 0.5) * 0.14,
+        depth: 0.2 + Math.random() * 0.7,
+        color: isGreen ? "rgba(11, 122, 59, 0.24)" : "rgba(15, 31, 78, 0.22)",
+      });
+    }
+  };
+
+  const resize = () => {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seedParticles();
+    draw(false);
+  };
+
+  const draw = (step) => {
+    ctx.clearRect(0, 0, width, height);
+    const scrollShift = (window.scrollY || 0) * 0.08;
+
+    for (let i = 0; i < particles.length; i += 1) {
+      const p = particles[i];
+      if (step) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < -8) p.x = width + 8;
+        if (p.x > width + 8) p.x = -8;
+        if (p.y < -8) p.y = height + 8;
+        if (p.y > height + 8) p.y = -8;
+      }
+      const py = (((p.y - scrollShift * p.depth) % (height + 16)) + (height + 16)) % (height + 16) - 8;
+      ctx.beginPath();
+      ctx.arc(p.x, py, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    }
+  };
+
+  const loop = () => {
+    if (document.hidden) {
+      rafId = 0;
+      return;
+    }
+    draw(true);
+    rafId = requestAnimationFrame(loop);
+  };
+
+  resize();
+  window.addEventListener("resize", resize, { passive: true });
+
+  if (!prefersReduced) {
+    rafId = requestAnimationFrame(loop);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && !rafId) {
+        rafId = requestAnimationFrame(loop);
+      }
+    });
+  } else {
+    window.addEventListener("scroll", () => draw(false), { passive: true });
+  }
+}
+
+function initHeroPointerDepth() {
+  const stage = document.getElementById("heroStage");
+  if (!stage) return;
+
+  const canHover =
+    window.matchMedia &&
+    window.matchMedia("(hover: hover) and (pointer: fine)").matches &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!canHover) return;
+
+  const items = Array.from(stage.querySelectorAll("[data-pointer-depth]"));
+  if (!items.length) return;
+
+  let targetX = 0;
+  let targetY = 0;
+  let curX = 0;
+  let curY = 0;
+  let rafId = 0;
+
+  const animate = () => {
+    curX += (targetX - curX) * 0.1;
+    curY += (targetY - curY) * 0.1;
+
+    for (let i = 0; i < items.length; i += 1) {
+      const el = items[i];
+      const depth = parseFloat(el.dataset.pointerDepth || "1");
+      const dx = (curX * 12 * depth).toFixed(2);
+      const dy = (curY * 9 * depth).toFixed(2);
+      el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+    }
+
+    if (Math.abs(targetX - curX) > 0.002 || Math.abs(targetY - curY) > 0.002) {
+      rafId = requestAnimationFrame(animate);
+    } else {
+      rafId = 0;
+    }
+  };
+
+  stage.addEventListener(
+    "pointermove",
+    (event) => {
+      const rect = stage.getBoundingClientRect();
+      targetX = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 2;
+      targetY = ((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 2;
+      if (!rafId) rafId = requestAnimationFrame(animate);
+    },
+    { passive: true }
+  );
+
+  stage.addEventListener("pointerleave", () => {
+    targetX = 0;
+    targetY = 0;
+    if (!rafId) rafId = requestAnimationFrame(animate);
+  });
+}
+
+function initEcgPulseRail() {
+  const path = document.getElementById("ecgProgressPath");
+  const nodes = Array.from(document.querySelectorAll(".ecg-node"));
+  const navLinks = Array.from(document.querySelectorAll(".nav-link"));
+  const sections = ["overview", "method", "specialties", "studio"]
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+
+  let totalLength = 0;
+  if (path && typeof path.getTotalLength === "function") {
+    totalLength = path.getTotalLength();
+    path.style.strokeDasharray = `${totalLength}`;
+    path.style.strokeDashoffset = `${totalLength}`;
+  }
+
+  let rafId = 0;
+  const update = () => {
+    rafId = 0;
+    const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+    const progress = Math.min(1, Math.max(0, (window.scrollY || 0) / maxScroll));
+
+    if (path && totalLength > 0) {
+      const shown = Math.max(0.06, progress);
+      path.style.strokeDashoffset = `${(totalLength * (1 - shown)).toFixed(1)}`;
+    }
+
+    let activeId = "overview";
+    const probeY = window.scrollY + window.innerHeight * 0.36;
+    for (let i = 0; i < sections.length; i += 1) {
+      if (sections[i].offsetTop <= probeY) {
+        activeId = sections[i].id;
+      }
+    }
+
+    nodes.forEach((node) => {
+      node.classList.toggle("is-active", node.dataset.ecgTarget === activeId);
+    });
+    navLinks.forEach((link) => {
+      link.classList.toggle("is-active", link.getAttribute("href") === `#${activeId}`);
+    });
+  };
+
+  const onScroll = () => {
+    if (!rafId) rafId = requestAnimationFrame(update);
+  };
+
+  update();
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+}
+
+// Mount untouched ScrollCraft engine & page-local interactions
+renderStaticPreviewFormulas();
+if (window.ScrollCraft && typeof window.ScrollCraft.mount === "function") {
+  window.ScrollCraft.mount(document);
+}
+initParticleField();
+initHeroPointerDepth();
+initEcgPulseRail();

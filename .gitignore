@@ -11,3 +11,6 @@ backend/.env
 # Node
 node_modules/
 .DS_Store
+
+# ScrollCraft local workspace & verification shots
+scrollcraft/

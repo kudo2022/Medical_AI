@@ -3,188 +3,586 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MedStudy AI — Web Học Y Khoa</title>
+    <title>MedStudy AI · Đại học Y Dược ĐHQGHN (UMP)</title>
+    <link rel="icon" type="image/png" href="./assets/ump-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="./engine/scrollcraft.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 4V20M4 12H20"
-                stroke="currentColor"
-                stroke-width="2.6"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
-          <div>
-            <h1>MedStudy AI</h1>
-            <p class="brand-sub">Trợ lý hỏi đáp học Y khoa</p>
-          </div>
-        </div>
+    <!-- Fixed high-key particle field background (inspired by airy campus study canvas) -->
+    <canvas id="particleField" class="particle-canvas" aria-hidden="true"></canvas>
 
-        <div class="topbar-actions">
-          <button type="button" id="clearChatBtn" class="btn-ghost" title="Xóa lịch sử hội thoại hiện tại">
-            Hội thoại mới
-          </button>
-        </div>
-      </header>
+    <!-- Clean top navigation bar with official UMP emblem -->
+    <header class="site-nav" id="siteNav">
+      <div class="site-nav__inner sc-wrap">
+        <a href="#overview" class="brand-link" aria-label="MedStudy AI UMP trang chủ">
+          <img
+            src="./assets/ump-logo.png"
+            alt="Logo Trường Đại học Y Dược ĐHQGHN"
+            width="42"
+            height="42"
+            class="brand-logo"
+          />
+          <div class="brand-text">
+            <span class="brand-name">MedStudy AI</span>
+            <span class="brand-unit">Đại học Y Dược · ĐHQGHN</span>
+          </div>
+        </a>
 
-      <div class="topic-bar" role="region" aria-label="Chọn môn học">
-        <span class="topic-label">Chuyên ngành:</span>
-        <div class="topic-chips" id="topicChips">
-          <button type="button" class="chip active" data-topic="Tự do">Tự do</button>
-          <button type="button" class="chip" data-topic="Giải phẫu">Giải phẫu</button>
-          <button type="button" class="chip" data-topic="Sinh lý">Sinh lý</button>
-          <button type="button" class="chip" data-topic="Dược lý">Dược lý</button>
-          <button type="button" class="chip" data-topic="Nội khoa">Nội khoa</button>
-          <button type="button" class="chip" data-topic="Ngoại khoa">Ngoại khoa</button>
-          <button type="button" class="chip" data-topic="Vi sinh & Miễn dịch">Vi sinh &amp; Miễn dịch</button>
-        </div>
+        <nav class="nav-links" aria-label="Điều hướng chính">
+          <a href="#overview" class="nav-link">Tổng quan</a>
+          <a href="#method" class="nav-link">Công thức &amp; PDF</a>
+          <a href="#specialties" class="nav-link">Chuyên ngành</a>
+          <a href="#studio" class="nav-link">Phòng học AI</a>
+        </nav>
+
+        <a href="#studio" class="btn-cta btn-cta--nav" id="navCtaBtn">
+          <span>Vào học ngay</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M5 12H19M19 12L13 6M19 12L13 18"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </a>
       </div>
+    </header>
 
-      <main id="chatContainer" class="chat-container">
-        <section id="emptyState" class="empty-state">
-          <div class="empty-badge">Học Y thông minh &amp; có hệ thống</div>
-          <h2>Bạn đang ôn kiến thức Y khoa nào hôm nay?</h2>
-          <p>
-            Nhập câu hỏi về giải phẫu, sinh lý, cơ chế bệnh sinh, dược lý hoặc tình huống lâm sàng để được giải thích chi tiết.
-          </p>
+    <main id="pageRoot">
+      <!-- ================================================================
+           ACT 1: DIMENSIONAL LAYERED HERO (parallax, 4 independent planes)
+           ================================================================ -->
+      <section id="overview" class="hero-act" data-sc-act="flow">
+        <div class="hero-wash" data-sc-parallax="-0.45" aria-hidden="true"></div>
+        <div class="hero-grid-plane" data-sc-parallax="-0.25" aria-hidden="true"></div>
 
-          <div class="sample-grid">
-            <button
-              type="button"
-              class="sample-card"
-              data-topic="Dược lý"
-              data-question="Phân biệt cơ chế tác dụng và tác dụng phụ thường gặp của thuốc ức chế men chuyển (ACEi) và thuốc chẹn thụ thể angiotensin II (ARB)?"
-            >
-              <span class="sample-tag">Dược lý</span>
-              <span>Phân biệt cơ chế và tác dụng phụ của ACEi và ARB</span>
-            </button>
+        <div class="hero-layout sc-wrap">
+          <div class="hero-copy">
+            <div class="hero-eyebrow">
+              <span class="hero-eyebrow__dot" aria-hidden="true"></span>
+              <span>Trợ lý học tập cho sinh viên Y Dược</span>
+            </div>
 
-            <button
-              type="button"
-              class="sample-card"
-              data-topic="Sinh lý"
-              data-question="Giải thích ngắn gọn chu chuyển tim và cơ chế hình thành hai tiếng tim sinh lý T1, T2?"
-            >
-              <span class="sample-tag">Sinh lý</span>
-              <span>Chu chuyển tim và cơ chế tạo tiếng tim T1, T2</span>
-            </button>
+            <h1 class="sc-display hero-title">
+              Học Y khoa rõ cơ chế,
+              <span class="hero-title__accent">vững lâm sàng</span>
+            </h1>
 
-            <button
-              type="button"
-              class="sample-card"
-              data-topic="Nội khoa"
-              data-question="Tóm tắt tiêu chuẩn chẩn đoán đái tháo đường type 2 theo ADA và ý nghĩa của chỉ số HbA1c?"
-            >
-              <span class="sample-tag">Nội khoa</span>
-              <span>Tiêu chuẩn chẩn đoán đái tháo đường type 2 &amp; HbA1c</span>
-            </button>
+            <p class="hero-lead">
+              Hỏi đáp theo từng chuyên ngành, tải giáo trình PDF trích dẫn đúng số trang và đọc công thức Dược động học sắc nét như sách giáo khoa.
+            </p>
 
-            <button
-              type="button"
-              class="sample-card"
-              data-topic="Giải phẫu"
-              data-question="Trình bày đường đi chính và các nhánh tận của dây thần kinh quay, cùng dấu hiệu lâm sàng khi tổn thương?"
-            >
-              <span class="sample-tag">Giải phẫu</span>
-              <span>Dây thần kinh quay và dấu hiệu lâm sàng khi tổn thương</span>
-            </button>
-          </div>
-        </section>
-
-        <div id="messagesList" class="messages-list" aria-live="polite"></div>
-      </main>
-
-      <footer class="composer-wrap">
-        <div id="pdfBar" class="pdf-bar hidden" role="status" aria-live="polite">
-          <div class="pdf-bar-main">
-            <span class="pdf-icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <path
-                  d="M14 2v6h6M8 13h8M8 17h5"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
-            <div class="pdf-info">
-              <span id="pdfName" class="pdf-name"></span>
-              <span id="pdfMeta" class="pdf-meta"></span>
+            <div class="hero-actions">
+              <a href="#studio" class="btn-cta btn-cta--lg" id="heroStartBtn">
+                <span>Vào học ngay</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 12H19M19 12L13 6M19 12L13 18"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </a>
+              <a href="#specialties" class="btn-outline-nav">Chọn chuyên ngành</a>
             </div>
           </div>
-          <div class="pdf-bar-actions">
-            <button type="button" id="pdfQuickSummaryBtn" class="pdf-quick-btn">Tóm tắt</button>
-            <button type="button" id="pdfQuickQuizBtn" class="pdf-quick-btn">5 câu trắc nghiệm</button>
-            <button type="button" id="removePdfBtn" class="pdf-remove-btn" title="Gỡ tài liệu PDF" aria-label="Gỡ tài liệu PDF">
-              ✕
-            </button>
+
+          <!-- 4-plane dimensional study desk preview (independently moving layers) -->
+          <div class="hero-stage" id="heroStage" aria-label="Minh họa không gian học MedStudy AI">
+            <!-- Plane 1: Midground PDF source sheet (recedes upward) -->
+            <div class="depth-plane depth-plane--back" data-sc-parallax="-0.85">
+              <div class="float-sheet float-sheet--pdf" data-pointer-depth="0.45">
+                <div class="float-sheet__head">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path d="M14 2v6h6M8 13h8M8 17h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                  <span class="float-sheet__title">Duoc_ly_dai_cuong.pdf</span>
+                </div>
+                <div class="float-sheet__rows">
+                  <div class="pdf-mini-row"><span>Trang 14</span><strong>Khoảng điều trị (TI)</strong></div>
+                  <div class="pdf-mini-row"><span>Trang 15</span><strong>Độ thanh thải thận</strong></div>
+                  <div class="pdf-mini-row"><span>Trang 18</span><strong>Thời gian bán thải</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Plane 2: Focal study card (real KaTeX rendered formula) -->
+            <div class="depth-plane depth-plane--focal" data-sc-parallax="-0.3">
+              <article class="focal-card" data-pointer-depth="0.9">
+                <div class="focal-card__bar">
+                  <span class="focal-card__tag">Dược lý · Cơ chế trọng tâm</span>
+                  <span class="focal-card__cite">Trích Trang 14</span>
+                </div>
+                <h2 class="focal-card__heading">Chỉ số điều trị (Therapeutic Index)</h2>
+                <div class="focal-card__formula" id="heroPreviewFormula">
+                  TI = TD<sub>50</sub> / ED<sub>50</sub>
+                </div>
+                <ul class="focal-card__notes">
+                  <li><strong>ED<sub>50</sub>:</strong> liều có hiệu quả ở 50% quần thể</li>
+                  <li><strong>TD<sub>50</sub>:</strong> liều gây độc ở 50% quần thể</li>
+                  <li><strong>Lâm sàng:</strong> thuốc TI hẹp (digoxin, warfarin) cần theo dõi nồng độ sát</li>
+                </ul>
+              </article>
+            </div>
+
+            <!-- Plane 3: Near foreground floating tags (overtake the focal card on scroll) -->
+            <div class="depth-plane depth-plane--front-top" data-sc-parallax="0.55">
+              <div class="float-chip float-chip--navy" data-pointer-depth="1.45">
+                <span class="float-chip__icon" aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M12 3v18M3 12h18"
+                      stroke="currentColor"
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                <div>
+                  <strong>Gia sư Y khoa AI</strong>
+                  <span>Trả lời từng dòng trực tiếp</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="depth-plane depth-plane--front-bottom" data-sc-parallax="0.7">
+              <div class="float-chip float-chip--paper" data-pointer-depth="1.65">
+                <div class="float-chip__title">Tiện ích ôn thi</div>
+                <div class="float-chip__list">
+                  <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Đọc PDF giáo trình &amp; bản scan
+                  </span>
+                  <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Công thức KaTeX rõ ràng
+                  </span>
+                  <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Tạo nhanh 5 câu trắc nghiệm
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
 
-        <form id="questionForm" class="composer">
-          <input type="file" id="pdfInput" accept=".pdf,application/pdf" class="hidden" />
-          <button
-            type="button"
-            id="uploadPdfBtn"
-            class="attach-btn"
-            title="Tải lên tài liệu PDF (tối đa 15 MB)"
-            aria-label="Tải lên tài liệu PDF"
-          >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span class="attach-label">PDF</span>
-          </button>
+      <!-- ================================================================
+           ACT 2: QUIET EDITORIAL DISSECTION (reveal wipe before the peak)
+           ================================================================ -->
+      <section id="method" class="method-act sc-section" data-sc-act="flow">
+        <div class="sc-wrap method-grid">
+          <div class="method-copy sc-stack">
+            <h2 class="sc-display sc-display--md method-heading">
+              Từ giáo trình PDF dày đến câu trả lời đúng trọng tâm
+            </h2>
+            <p class="sc-body method-body">
+              Tải lên slide bài giảng, phác đồ hoặc phiếu xét nghiệm PDF. Hệ thống tự tách trang, chọn đúng đoạn liên quan tới câu hỏi và giải thích theo trình tự cơ chế sinh lý, liên hệ lâm sàng và bẫy dễ nhầm khi thi.
+            </p>
+            <div class="method-points">
+              <div class="method-point">
+                <span class="method-point__mark" aria-hidden="true"></span>
+                <div>
+                  <strong>Bám sát tài liệu, ghi rõ số trang</strong>
+                  <p>Hỏi trực tiếp theo trang (ví dụ "tóm tắt trang 12") hoặc tạo nhanh bộ câu hỏi ôn tập.</p>
+                </div>
+              </div>
+              <div class="method-point">
+                <span class="method-point__mark" aria-hidden="true"></span>
+                <div>
+                  <strong>Hỗ trợ cả PDF chữ và PDF ảnh scan</strong>
+                  <p>Tài liệu bài giảng chữ đọc tức thì; ảnh chụp xét nghiệm hay sơ đồ được phân tích trực tiếp.</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <textarea
-            id="questionInput"
-            rows="1"
-            maxlength="4000"
-            aria-label="Nhập câu hỏi y khoa"
-            placeholder="Nhập câu hỏi y khoa hoặc tải lên file PDF... (Enter để gửi, Shift + Enter để xuống dòng)"
-          ></textarea>
-          <button type="submit" id="sendBtn" class="btn-primary">
-            <span class="send-label">Gửi câu hỏi</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 12H19M19 12L13 6M19 12L13 18"
-                stroke="currentColor"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-        </form>
-        <div class="composer-footer">
-          <p class="disclaimer">
-            Lưu ý học thuật: Nội dung do AI hỗ trợ chỉ phục vụ mục đích học tập &amp; ôn thi y khoa, không thay thế chẩn đoán hay chỉ định điều trị lâm sàng.
-          </p>
-          <span id="charCount" class="char-count hidden" aria-live="polite"></span>
+          <div class="method-visual" data-sc-reveal="up" data-sc-reveal-at="0.06 0.44">
+            <div class="dissection-plate">
+              <div class="dissection-plate__top">
+                <span class="dissection-pill">Ví dụ trích xuất bài học</span>
+                <span class="dissection-mono">Sinh lý Thận · Trang 22</span>
+              </div>
+              <div class="dissection-plate__formula" id="methodFormula">
+                Cl<sub>Cr</sub> = ((140 - Tuổi) × Cân nặng) / (72 × Scr)
+              </div>
+              <div class="dissection-plate__grid">
+                <div class="dissection-cell">
+                  <span class="dissection-label">Tư duy cơ chế</span>
+                  <p>Ước tính độ thanh thải creatinin giúp đánh giá chức năng lọc cầu thận và chỉnh liều thuốc thải qua thận.</p>
+                </div>
+                <div class="dissection-cell">
+                  <span class="dissection-label">Điểm hay nhầm khi thi</span>
+                  <p>Với bệnh nhân nữ, cần nhân thêm hệ số <strong>0,85</strong> do khối lượng cơ trung bình thấp hơn nam giới.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </footer>
-    </div>
+      </section>
 
+      <!-- ================================================================
+           ACT 3 (THE PEAK): HORIZONTAL SPECIALTY RAIL (pan)
+           Clicking any specialty card wires directly into the Live Tutor!
+           ================================================================ -->
+      <section id="specialties" class="specialties-act" data-sc-act="pan" data-sc-span="3.6">
+        <div data-sc-stage class="specialties-stage">
+          <div class="specialties-rail" data-sc-pan="0.05" id="specialtiesRail">
+            <div class="rail-intro">
+              <h2 class="sc-display sc-display--md rail-intro__title">
+                Bảy chuyên ngành ôn tập cốt lõi
+              </h2>
+              <p class="rail-intro__desc">
+                Chọn trực tiếp một chuyên ngành trên kệ để nạp sẵn ngữ cảnh chuyên môn vào phòng học AI bên dưới.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Giải phẫu"
+              data-spec-question="Trình bày đường đi chính và các nhánh tận của dây thần kinh quay, cùng dấu hiệu lâm sàng khi tổn thương?"
+            >
+              <span class="spec-card__code">ANAT</span>
+              <h3 class="spec-card__title">Giải phẫu</h3>
+              <p class="spec-card__desc">Cấu trúc định khu, mạch máu, thần kinh ngoại biên và liên hệ chấn thương.</p>
+              <span class="spec-card__action">Mở môn này →</span>
+            </button>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Sinh lý"
+              data-spec-question="Giải thích ngắn gọn chu chuyển tim và cơ chế hình thành hai tiếng tim sinh lý T1, T2?"
+            >
+              <span class="spec-card__code">PHYS</span>
+              <h3 class="spec-card__title">Sinh lý</h3>
+              <p class="spec-card__desc">Chu chuyển tim, hô hấp, thăng bằng toan kiềm và cơ chế điều hòa nội môi.</p>
+              <span class="spec-card__action">Mở môn này →</span>
+            </button>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Dược lý"
+              data-spec-question="Phân biệt cơ chế tác dụng và tác dụng phụ thường gặp của thuốc ức chế men chuyển (ACEi) và thuốc chẹn thụ thể angiotensin II (ARB)?"
+            >
+              <span class="spec-card__code">PHARM</span>
+              <h3 class="spec-card__title">Dược lý</h3>
+              <p class="spec-card__desc">Dược động học, chỉ số điều trị, cơ chế tác dụng và tương tác thuốc quan trọng.</p>
+              <span class="spec-card__action">Mở môn này →</span>
+            </button>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Nội khoa"
+              data-spec-question="Tóm tắt tiêu chuẩn chẩn đoán đái tháo đường type 2 theo ADA và ý nghĩa của chỉ số HbA1c?"
+            >
+              <span class="spec-card__code">MED</span>
+              <h3 class="spec-card__title">Nội khoa</h3>
+              <p class="spec-card__desc">Biện luận ca lâm sàng, tiêu chuẩn chẩn đoán và phân tích cận lâm sàng.</p>
+              <span class="spec-card__action">Mở môn này →</span>
+            </button>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Ngoại khoa"
+              data-spec-question="Trình bày tam chứng kinh điển, điểm đau lâm sàng và hướng tiếp cận chẩn đoán viêm ruột thừa cấp?"
+            >
+              <span class="spec-card__code">SURG</span>
+              <h3 class="spec-card__title">Ngoại khoa</h3>
+              <p class="spec-card__desc">Cấp cứu ngoại khoa, triệu chứng thực thể, phân độ tổn thương và nguyên tắc xử trí.</p>
+              <span class="spec-card__action">Mở môn này →</span>
+            </button>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Vi sinh & Miễn dịch"
+              data-spec-question="So sánh cơ chế đề kháng kháng sinh phổ biến ở vi khuẩn Gram âm và Gram dương?"
+            >
+              <span class="spec-card__code">MICRO</span>
+              <h3 class="spec-card__title">Vi sinh &amp; Miễn dịch</h3>
+              <p class="spec-card__desc">Cơ chế gây bệnh, đáp ứng miễn dịch, vắc xin và nguyên lý chọn kháng sinh.</p>
+              <span class="spec-card__action">Mở môn này →</span>
+            </button>
+
+            <button
+              type="button"
+              class="spec-card"
+              data-spec-topic="Tự do"
+              data-spec-question=""
+            >
+              <span class="spec-card__code">FREE</span>
+              <h3 class="spec-card__title">Hỏi đáp tự do</h3>
+              <p class="spec-card__desc">Ôn tập liên môn, tải giáo trình PDF bất kỳ hoặc luyện tập câu hỏi trắc nghiệm.</p>
+              <span class="spec-card__action">Vào phòng học →</span>
+            </button>
+
+            <div class="rail-outro">
+              <p class="rail-outro__text">Sẵn sàng bắt đầu buổi học hôm nay?</p>
+              <a href="#studio" class="btn-cta">Vào phòng học AI</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           ACT 4 (RESOLVED ENDING): LIVE WORKING MEDSTUDY AI WORKSPACE
+           Real FastAPI streaming, PDF upload, KaTeX math, synced topics!
+           ================================================================ -->
+      <section id="studio" class="studio-act" data-sc-act="flow">
+        <div class="sc-wrap studio-wrap" data-sc-in data-sc-stagger="60">
+          <div class="studio-intro">
+            <div>
+              <h2 class="sc-display sc-display--md studio-title">Phòng học Gia sư Y khoa</h2>
+              <p class="studio-subtitle">
+                Đặt câu hỏi trực tiếp hoặc kéo thả tài liệu PDF vào khung bên dưới để ôn bài cùng MedStudy AI.
+              </p>
+            </div>
+            <button type="button" id="clearChatBtn" class="btn-ghost" title="Xóa lịch sử hội thoại hiện tại">
+              Hội thoại mới
+            </button>
+          </div>
+
+          <div class="app-shell">
+            <div class="topic-bar" role="region" aria-label="Chọn chuyên ngành">
+              <span class="topic-label">Chuyên ngành:</span>
+              <div class="topic-chips" id="topicChips">
+                <button type="button" class="chip active" data-topic="Tự do">Tự do</button>
+                <button type="button" class="chip" data-topic="Giải phẫu">Giải phẫu</button>
+                <button type="button" class="chip" data-topic="Sinh lý">Sinh lý</button>
+                <button type="button" class="chip" data-topic="Dược lý">Dược lý</button>
+                <button type="button" class="chip" data-topic="Nội khoa">Nội khoa</button>
+                <button type="button" class="chip" data-topic="Ngoại khoa">Ngoại khoa</button>
+                <button type="button" class="chip" data-topic="Vi sinh & Miễn dịch">Vi sinh &amp; Miễn dịch</button>
+              </div>
+            </div>
+
+            <div id="chatContainer" class="chat-container">
+              <section id="emptyState" class="empty-state">
+                <img
+                  src="./assets/ump-logo.png"
+                  alt=""
+                  width="54"
+                  height="54"
+                  class="empty-emblem"
+                  aria-hidden="true"
+                />
+                <h3>Bạn đang ôn kiến thức Y khoa nào hôm nay?</h3>
+                <p>
+                  Nhập câu hỏi về giải phẫu, sinh lý, cơ chế bệnh sinh, dược lý hoặc tải giáo trình PDF để nhận giải thích chi tiết.
+                </p>
+
+                <div class="sample-grid">
+                  <button
+                    type="button"
+                    class="sample-card"
+                    data-topic="Dược lý"
+                    data-question="Phân biệt cơ chế tác dụng và tác dụng phụ thường gặp của thuốc ức chế men chuyển (ACEi) và thuốc chẹn thụ thể angiotensin II (ARB)?"
+                  >
+                    <span class="sample-tag">Dược lý</span>
+                    <span>Phân biệt cơ chế và tác dụng phụ của ACEi và ARB</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="sample-card"
+                    data-topic="Sinh lý"
+                    data-question="Giải thích ngắn gọn chu chuyển tim và cơ chế hình thành hai tiếng tim sinh lý T1, T2?"
+                  >
+                    <span class="sample-tag">Sinh lý</span>
+                    <span>Chu chuyển tim và cơ chế tạo tiếng tim T1, T2</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="sample-card"
+                    data-topic="Nội khoa"
+                    data-question="Tóm tắt tiêu chuẩn chẩn đoán đái tháo đường type 2 theo ADA và ý nghĩa của chỉ số HbA1c?"
+                  >
+                    <span class="sample-tag">Nội khoa</span>
+                    <span>Tiêu chuẩn chẩn đoán đái tháo đường type 2 &amp; HbA1c</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="sample-card"
+                    data-topic="Giải phẫu"
+                    data-question="Trình bày đường đi chính và các nhánh tận của dây thần kinh quay, cùng dấu hiệu lâm sàng khi tổn thương?"
+                  >
+                    <span class="sample-tag">Giải phẫu</span>
+                    <span>Dây thần kinh quay và dấu hiệu lâm sàng khi tổn thương</span>
+                  </button>
+                </div>
+              </section>
+
+              <div id="messagesList" class="messages-list" aria-live="polite"></div>
+            </div>
+
+            <div class="composer-wrap">
+              <div id="pdfBar" class="pdf-bar hidden" role="status" aria-live="polite">
+                <div class="pdf-bar-main">
+                  <span class="pdf-icon" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M14 2v6h6M8 13h8M8 17h5"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <div class="pdf-info">
+                    <span id="pdfName" class="pdf-name"></span>
+                    <span id="pdfMeta" class="pdf-meta"></span>
+                  </div>
+                </div>
+                <div class="pdf-bar-actions">
+                  <button type="button" id="pdfQuickSummaryBtn" class="pdf-quick-btn">Tóm tắt</button>
+                  <button type="button" id="pdfQuickQuizBtn" class="pdf-quick-btn">5 câu trắc nghiệm</button>
+                  <button
+                    type="button"
+                    id="removePdfBtn"
+                    class="pdf-remove-btn"
+                    title="Gỡ tài liệu PDF"
+                    aria-label="Gỡ tài liệu PDF"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <form id="questionForm" class="composer" method="post" action="#studio">
+                <input type="file" id="pdfInput" accept=".pdf,application/pdf" class="hidden" />
+                <button
+                  type="button"
+                  id="uploadPdfBtn"
+                  class="attach-btn"
+                  title="Tải lên tài liệu PDF (tối đa 15 MB)"
+                  aria-label="Tải lên tài liệu PDF"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span class="attach-label">PDF</span>
+                </button>
+
+                <textarea
+                  id="questionInput"
+                  rows="1"
+                  maxlength="4000"
+                  aria-label="Nhập câu hỏi y khoa"
+                  placeholder="Hỏi bài y khoa hoặc kéo thả PDF..."
+                ></textarea>
+
+                <button type="submit" id="sendBtn" class="btn-primary">
+                  <span class="send-label">Gửi câu hỏi</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M5 12H19M19 12L13 6M19 12L13 18"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </form>
+
+              <div class="composer-footer">
+                <p class="disclaimer">
+                  Lưu ý học thuật: Nội dung do AI hỗ trợ chỉ phục vụ mục đích học tập và ôn thi y khoa, không thay thế chẩn đoán hay chỉ định điều trị lâm sàng.
+                </p>
+                <span id="charCount" class="char-count hidden" aria-live="polite"></span>
+              </div>
+            </div>
+          </div>
+
+          <footer class="studio-colophon">
+            <span>MedStudy AI · Đồng hành học tập cùng sinh viên Trường Đại học Y Dược, ĐHQGHN</span>
+            <a href="#overview" class="colophon-top">Về đầu trang ↑</a>
+          </footer>
+        </div>
+      </section>
+    </main>
+
+    <!-- Signature Move: Live Scroll-Driven ECG Study Pulse Rail -->
+    <aside class="ecg-rail" id="ecgRail" aria-label="Tiến trình học tập theo cuộn">
+      <div class="ecg-rail__inner sc-wrap">
+        <div class="ecg-rail__nodes">
+          <a href="#overview" class="ecg-node is-active" data-ecg-target="overview">Tổng quan</a>
+          <a href="#method" class="ecg-node" data-ecg-target="method">PDF &amp; Công thức</a>
+          <a href="#specialties" class="ecg-node" data-ecg-target="specialties">Chuyên ngành</a>
+          <a href="#studio" class="ecg-node" data-ecg-target="studio">Phòng học AI</a>
+        </div>
+        <div class="ecg-wave-wrap" aria-hidden="true">
+          <svg class="ecg-svg" viewBox="0 0 600 32" preserveAspectRatio="none">
+            <path
+              class="ecg-track"
+              d="M0,18 L68,18 L78,18 L84,12 L90,18 L104,18 L110,22 L118,4 L126,28 L134,18 L148,18 L158,10 L168,18 L242,18 L252,18 L258,12 L264,18 L278,18 L284,22 L292,4 L300,28 L308,18 L322,18 L332,10 L342,18 L416,18 L426,18 L432,12 L438,18 L452,18 L458,22 L466,4 L474,28 L482,18 L496,18 L506,10 L516,18 L600,18"
+            />
+            <path
+              id="ecgProgressPath"
+              class="ecg-progress"
+              d="M0,18 L68,18 L78,18 L84,12 L90,18 L104,18 L110,22 L118,4 L126,28 L134,18 L148,18 L158,10 L168,18 L242,18 L252,18 L258,12 L264,18 L278,18 L284,22 L292,4 L300,28 L308,18 L322,18 L332,10 L342,18 L416,18 L426,18 L432,12 L438,18 L452,18 L458,22 L466,4 L474,28 L482,18 L496,18 L506,10 L516,18 L600,18"
+            />
+          </svg>
+        </div>
+      </div>
+    </aside>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script src="./engine/scrollcraft.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
