@@ -531,6 +531,24 @@ select:focus-visible {
   margin-bottom: 0;
 }
 
+.markdown-body.streaming::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background: var(--primary);
+  animation: blink-cursor 0.9s steps(2, start) infinite;
+}
+
+@keyframes blink-cursor {
+  to {
+    opacity: 0;
+  }
+}
+
 .markdown-body h1,
 .markdown-body h2,
 .markdown-body h3,

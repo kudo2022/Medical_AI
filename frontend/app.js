@@ -4,6 +4,7 @@ const state = {
   isLoading: false,
   isUploadingPdf: false,
   pdf: null,
+  pdfFile: null,
 };
 
 const els = {
@@ -277,8 +278,15 @@ function renderMarkdown(markdown) {
   return output.join("\n");
 }
 
-function scrollToBottom() {
-  els.chatContainer.scrollTop = els.chatContainer.scrollHeight;
+function isNearBottom(threshold = 120) {
+  const { scrollTop, scrollHeight, clientHeight } = els.chatContainer;
+  return scrollHeight - (scrollTop + clientHeight) <= threshold;
+}
+
+function scrollToBottom(force = true) {
+  if (force || isNearBottom()) {
+    els.chatContainer.scrollTop = els.chatContainer.scrollHeight;
+  }
 }
 
 function appendUserMessage(text, topic, pdfName = "") {
@@ -456,8 +464,33 @@ function renderPdfBar() {
 
 function clearPdfAttachment() {
   state.pdf = null;
+  state.pdfFile = null;
   els.pdfInput.value = "";
   renderPdfBar();
+}
+
+async function uploadPdfToServer(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${getBackendUrl()}/api/upload-pdf`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(extractErrorDetail(data, response.status));
+  }
+
+  return {
+    pdf_id: data.pdf_id,
+    filename: data.filename || file.name,
+    pages: data.pages || 1,
+    char_count: data.char_count || 0,
+    truncated: Boolean(data.truncated),
+    mode: data.mode || "text",
+  };
 }
 
 async function handlePdfFile(file) {
@@ -481,42 +514,82 @@ async function handlePdfFile(file) {
   renderPdfBar();
 
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch(`${getBackendUrl()}/api/upload-pdf`, {
-      method: "POST",
-      body: formData,
-    });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const detail = extractErrorDetail(data, response.status);
-      els.emptyState.classList.add("hidden");
-      appendErrorMessage(detail);
-      return;
-    }
-
-    state.pdf = {
-      filename: data.filename || file.name,
-      pages: data.pages || 1,
-      char_count: data.char_count || 0,
-      truncated: Boolean(data.truncated),
-      mode: data.mode || "text",
-      text: data.text || "",
-      pdf_base64: data.pdf_base64 || null,
-    };
+    state.pdf = await uploadPdfToServer(file);
+    state.pdfFile = file;
     els.questionInput.focus();
-  } catch {
+  } catch (err) {
     els.emptyState.classList.add("hidden");
     appendErrorMessage(
-      `Không thể tải lên file PDF tới máy chủ tại ${getBackendUrl()}. Vui lòng thử lại.`
+      (err && err.message) ||
+        `Không thể tải lên file PDF tới máy chủ tại ${getBackendUrl()}. Vui lòng thử lại.`
     );
   } finally {
     state.isUploadingPdf = false;
     els.pdfInput.value = "";
     renderPdfBar();
   }
+}
+
+function attachCopyHandler(copyBtn, getText) {
+  copyBtn.addEventListener("click", async () => {
+    const text = getText();
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        temp.style.position = "fixed";
+        temp.style.opacity = "0";
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        temp.remove();
+      }
+      copyBtn.textContent = "Đã sao chép";
+      setTimeout(() => {
+        copyBtn.textContent = "Sao chép";
+      }, 1600);
+    } catch {
+      copyBtn.textContent = "Không sao chép được";
+    }
+  });
+}
+
+function upgradeLoadingToStreamingBubble(loadingNode) {
+  loadingNode.removeAttribute("id");
+  const bubble = loadingNode.querySelector(".bubble");
+  bubble.innerHTML = `
+    <div class="markdown-body streaming"></div>
+    <div class="assistant-footer hidden">
+      <span class="assistant-info"></span>
+      <button type="button" class="copy-btn">Sao chép</button>
+    </div>
+  `;
+  return {
+    bodyEl: bubble.querySelector(".markdown-body"),
+    footerEl: bubble.querySelector(".assistant-footer"),
+    infoEl: bubble.querySelector(".assistant-info"),
+    copyBtn: bubble.querySelector(".copy-btn"),
+  };
+}
+
+async function fetchStreamResponse(requestBody, allowReupload = true) {
+  const response = await fetch(`${getBackendUrl()}/api/ask/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
+
+  // Nếu Render vừa khởi động lại làm hết hạn cache PDF, tự động tải lại file từ trình duyệt 1 lần
+  if (response.status === 410 && allowReupload && state.pdfFile) {
+    const refreshed = await uploadPdfToServer(state.pdfFile);
+    state.pdf = refreshed;
+    renderPdfBar();
+    return fetchStreamResponse({ ...requestBody, pdf_id: refreshed.pdf_id }, false);
+  }
+
+  return response;
 }
 
 async function submitQuestion(rawQuestion) {
@@ -544,43 +617,140 @@ async function submitQuestion(rawQuestion) {
       topic: state.topic,
       history: state.history,
     };
-    if (attachedPdf) {
-      requestBody.pdf_name = attachedPdf.filename;
-      if (attachedPdf.text) {
-        requestBody.pdf_text = attachedPdf.text;
-      } else if (attachedPdf.pdf_base64) {
-        requestBody.pdf_base64 = attachedPdf.pdf_base64;
-      }
+    if (attachedPdf && attachedPdf.pdf_id) {
+      requestBody.pdf_id = attachedPdf.pdf_id;
     }
 
-    const response = await fetch(`${getBackendUrl()}/api/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    loadingNode.remove();
+    const response = await fetchStreamResponse(requestBody, true);
 
     if (!response.ok) {
-      const detail = extractErrorDetail(data, response.status);
+      const data = await response.json().catch(() => ({}));
+      loadingNode.remove();
+      const detail =
+        data.detail === "PDF_EXPIRED"
+          ? "Phiên tài liệu PDF trên máy chủ đã hết hạn. Vui lòng tải lên lại file PDF."
+          : extractErrorDetail(data, response.status);
       appendErrorMessage(detail);
       return;
     }
 
-    appendAssistantMessage(data.answer, {
-      model: data.model,
-      usage: data.usage,
-    });
+    if (!response.body) {
+      loadingNode.remove();
+      appendErrorMessage("Trình duyệt không hỗ trợ streaming phản hồi.");
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let fullAnswer = "";
+    let streamUI = null;
+    let renderScheduled = false;
+    let doneMeta = null;
+    let streamError = null;
+
+    const flushRender = () => {
+      renderScheduled = false;
+      if (!streamUI) return;
+      const shouldStick = isNearBottom(140);
+      streamUI.bodyEl.innerHTML = renderMarkdown(fullAnswer);
+      if (shouldStick) scrollToBottom(true);
+    };
+
+    const processEventBlock = (rawBlock) => {
+      const lines = rawBlock.split("\n");
+      let eventName = "message";
+      const dataLines = [];
+      for (const rawLine of lines) {
+        const line = rawLine.replace(/\r$/, "");
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).trim());
+        }
+      }
+      if (dataLines.length === 0) return;
+
+      let payload;
+      try {
+        payload = JSON.parse(dataLines.join("\n"));
+      } catch {
+        return;
+      }
+
+      if (eventName === "delta" && payload.text) {
+        if (!streamUI) {
+          streamUI = upgradeLoadingToStreamingBubble(loadingNode);
+        }
+        fullAnswer += payload.text;
+        if (!renderScheduled) {
+          renderScheduled = true;
+          requestAnimationFrame(flushRender);
+        }
+      } else if (eventName === "done") {
+        doneMeta = payload;
+      } else if (eventName === "error") {
+        streamError = payload.detail || "Đã xảy ra lỗi khi nhận phản hồi.";
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() || "";
+      for (const block of blocks) {
+        if (block.trim()) processEventBlock(block);
+      }
+    }
+    if (buffer.trim()) {
+      processEventBlock(buffer);
+    }
+
+    if (streamError) {
+      if (!fullAnswer) {
+        loadingNode.remove();
+      } else if (streamUI) {
+        streamUI.bodyEl.classList.remove("streaming");
+      }
+      appendErrorMessage(streamError);
+      return;
+    }
+
+    if (!fullAnswer.trim()) {
+      loadingNode.remove();
+      appendErrorMessage("Không nhận được nội dung câu trả lời từ máy chủ.");
+      return;
+    }
+
+    if (!streamUI) {
+      streamUI = upgradeLoadingToStreamingBubble(loadingNode);
+    }
+    streamUI.bodyEl.classList.remove("streaming");
+    streamUI.bodyEl.innerHTML = renderMarkdown(fullAnswer);
+
+    const tokenText =
+      doneMeta && doneMeta.usage && doneMeta.usage.total_tokens
+        ? `${doneMeta.usage.total_tokens} tokens`
+        : "";
+    const modelText = doneMeta && doneMeta.model ? `Model: ${doneMeta.model}` : "";
+    streamUI.infoEl.textContent = [modelText, tokenText].filter(Boolean).join(" • ");
+    streamUI.footerEl.classList.remove("hidden");
+    attachCopyHandler(streamUI.copyBtn, () => fullAnswer);
+    scrollToBottom(false);
 
     state.history.push(
       { role: "user", content: question },
-      { role: "assistant", content: data.answer }
+      { role: "assistant", content: fullAnswer }
     );
-  } catch {
+  } catch (err) {
     loadingNode.remove();
     appendErrorMessage(
-      `Không thể kết nối đến máy chủ tại ${getBackendUrl()}. Vui lòng thử lại sau.`
+      (err && err.message && !String(err.message).includes("Failed to fetch"))
+        ? err.message
+        : `Không thể kết nối đến máy chủ tại ${getBackendUrl()}. Vui lòng thử lại sau.`
     );
   } finally {
     state.isLoading = false;
